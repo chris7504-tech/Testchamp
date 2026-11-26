@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pousse des champignons – autour de Sélestat</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#eceee0;--card:#f6f7ee;--ink:#1f2a22;--mute:#5d6a5f;--line:#cdd3bd;--moss:#4d7a38;--track:#dde1cc;--warn:#a8641c}
+@media (prefers-color-scheme:dark){:root{--bg:#161d18;--card:#1e2822;--ink:#e6eadb;--mute:#9aa795;--line:#33403a;--moss:#8fbf6a;--track:#2b372f;--warn:#e0a45a}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:env(safe-area-inset-top,0) 16px calc(24px + env(safe-area-inset-bottom,0))}
+main{max-width:640px;margin:0 auto}
+h1{font:600 1.5rem/1.2 Georgia,"Times New Roman",serif;margin:20px 0 10px;letter-spacing:-.01em}
+h2{font:600 1.15rem/1.3 Georgia,serif;margin:20px 0 8px}
+button{font:inherit;color:var(--ink)}
+a{color:var(--moss)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chips button{font-size:.88rem;padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
+.chips button[aria-pressed=true]{background:var(--moss);border-color:var(--moss);color:var(--bg);font-weight:600}
+.btn{font-size:.9rem;padding:8px 14px;border-radius:999px;border:1px solid var(--moss);background:var(--moss);color:var(--bg);font-weight:600;cursor:pointer}
+.btn.small{padding:5px 12px;font-size:.82rem}
+.btn:disabled{opacity:.5;cursor:default}
+button:focus-visible{outline:2px solid var(--moss);outline-offset:2px}
+.verdict{border-left:6px solid var(--line);padding-left:10px;margin-bottom:10px}
+.verdict.ok{border-color:#1e8449}.verdict.mid{border-color:#e0b000}.verdict.no{border-color:#c0392b}
+.vt{font:600 1.2rem/1.3 Georgia,serif}
+.vd{font-size:.88rem;color:var(--mute);margin-top:4px}
+.vd b{color:var(--ink)}
+.spot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.src{font-size:.78rem;color:var(--mute)}
+.warn{color:var(--warn)}
+.search{display:flex;gap:8px;margin-bottom:8px}
+.search input{flex:1;min-width:0;font:inherit;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;font-size:.85rem;color:var(--mute)}
+#map{height:360px;border-radius:10px;border:1px solid var(--line);margin-bottom:8px;z-index:0}
+.legend{margin:0 4px 14px}
+.lg{height:10px;border-radius:5px}
+.lgt{position:relative;height:18px;font-size:.7rem;color:var(--mute)}
+.lgt span{position:absolute;top:2px;white-space:nowrap}
+.lgs{font-size:.78rem;color:var(--mute)}
+#panel{font-size:.88rem;color:var(--mute)}
+#panel p{margin:0 0 6px}
+#panel p:last-child{margin:0}
+#panel b,.row b{color:var(--ink);font-weight:600}
+.row{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.name{font-weight:600}
+.lab{font-size:.8rem;color:var(--mute)}
+.score{font:600 1.6rem/1 Georgia,serif;white-space:nowrap}
+.score small{font:400 .8rem system-ui,sans-serif;color:var(--mute)}
+.bar{height:8px;border-radius:4px;background:var(--track);margin:10px 0 0;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px}
+.tend{margin-top:8px;font-size:.85rem}
+.det{margin-top:4px;font-size:.78rem;color:var(--mute)}
+.form{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0}
+.form label{display:flex;flex-direction:column;font-size:.8rem;color:var(--mute);gap:4px}
+.form select,.form input{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.rec{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;padding:8px 0;border-bottom:1px solid var(--line)}
+.lnk{background:none;border:none;color:var(--warn);text-decoration:underline;font-size:.82rem;cursor:pointer;padding:0}
+footer{color:var(--mute);font-size:.78rem;margin-top:20px}
+</style>
+</head>
+<body>
+<main>
+<h1>Pousse des champignons</h1>
+<section id="ana" class="card">
+  <div class="chips" id="chips" role="group" aria-label="Espèce"></div>
+  <div id="verdict" class="verdict">Calcul en cours…</div>
+  <div id="sugg"></div>
+</section>
+<div class="search"><input id="q" type="text" placeholder="Commune, lieu-dit ou coordonnées (48.26, 7.45)" aria-label="Chercher un lieu"><button class="btn" id="go">Aller</button></div>
+<div class="mapbar"><span id="hint">Touche la carte pour évaluer un point précis.</span><button class="btn" id="gps">Ma position</button></div>
+<div id="map"></div>
+<div id="legend" class="legend"></div>
+<div id="panel" class="card" hidden></div>
+<div id="list"></div>
+<section id="rec"></section>
+<footer>Indice de pousse de 0 à 100, sur le principe de Champiscope : réserve en eau de la litière simulée sur 30 jours, pluie déclenchante et délai depuis cette pluie, température, saison, gel. Paliers : moins de 30 improbable, 30 à 49 possible, 50 à 74 probable, 75 et plus fenêtre idéale. La carte colorée n'utilise que la météo, la saison et l'altitude (distance à vol d'oiseau de 35 km autour de Sélestat, pas un temps de trajet) ; en touchant un point, la forêt (IGN, BD Forêt V2) et le pH du sol (ISRIC SoilGrids, modèle à 250 m) s'ajoutent. Météo : Open-Meteo. Fonds : IGN Géoplateforme et OpenStreetMap. Les seuils des cèpes et des girolles s'inspirent d'études, ceux des autres espèces sont estimés, et rien n'est encore calibré sur tes récoltes. Ne mange rien sans identification certaine. <button class="lnk" id="refresh">Actualiser</button></footer>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// lat = fenêtre idéale (jours) entre la pluie déclenchante et la pousse ; need = réserve d'eau (mm) pour le plein effet ; tw = jours pour la température moyenne ; doc = 1 si seuils inspirés d'études
+var ESPECES = {
+  "Cèpes":               {lat:[12,21], need:15, tw:20, tlo:11, thi:16, s:7,  e:10, ph:[4,6.5],   doc:1, w:{epicea:1,sapin:1,hetre:1,chene:1,pin:1,charme:.5}},
+  "Girolles":            {lat:[7,14],  need:12, tw:14, tlo:12, thi:20, s:6,  e:10, ph:[4,6],     doc:1, w:{epicea:1,sapin:.9,hetre:1,chene:1,pin:.6,charme:.5}},
+  "Pieds de mouton":     {lat:[10,21], need:12, tw:7,  tlo:8,  thi:16, s:9,  e:11, ph:[4.5,7],   doc:0, w:{hetre:1,chene:1,epicea:.9,sapin:.9,pin:.8,charme:.8}},
+  "Chanterelles en tube":{lat:[10,21], need:12, tw:7,  tlo:4,  thi:12, s:10, e:12, ph:[3.8,5.5], doc:0, w:{epicea:1,sapin:1,hetre:.7,pin:.6,chene:.4}},
+  "Trompettes":          {lat:[10,21], need:12, tw:7,  tlo:10, thi:17, s:8,  e:11, ph:[5.5,8],   doc:0, w:{hetre:1,chene:1,charme:1,frene:.5}},
+  "Morilles":            {lat:[7,14],  need:8,  tw:7,  tlo:8,  thi:15, s:3,  e:5,  ph:[6.5,8],   doc:0, spring:1, w:{frene:1,aulne:.8,chene:.5,charme:.5,hetre:.5,sapin:.2,epicea:.2}}
+};
+var CEN = [48.26, 7.45], RAY = 35, I0 = 45;
+var LIEUX = [["Sélestat",48.260,7.454],["Villé",48.340,7.296],["Barr",48.411,7.451],["Obernai",48.462,7.482],["Mont Sainte-Odile",48.436,7.404],["Champ du Feu",48.390,7.270],["Le Hohwald",48.390,7.333],["Schirmeck",48.482,7.234],["Saales",48.350,7.010],["Sainte-Marie-aux-Mines",48.240,7.170],["Ribeauvillé",48.195,7.318],["Riquewihr",48.167,7.298],["Kaysersberg",48.138,7.262],["Lapoutroie",48.143,7.162],["Orbey",48.125,7.180],["Munster",48.040,7.138],["Colmar",48.079,7.358],["Haut-Kœnigsbourg",48.249,7.344],["Illwald",48.270,7.500],["Marckolsheim",48.165,7.548],["Dambach-la-Ville",48.313,7.420],["Rosheim",48.498,7.470],["Molsheim",48.540,7.493]];
+var STOPS = [[0,[192,57,43]],[30,[230,126,34]],[50,[241,196,15]],[75,[125,187,58]],[100,[30,132,73]]];
+
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+function trap(t,lo,hi){ if(t>=lo&&t<=hi) return 1; return t<lo ? clamp(1-(lo-t)/6,0,1) : clamp(1-(t-hi)/6,0,1); }
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function norm(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();}
+function distM(a,b,c,d){ var r=Math.PI/180, x=(c-a)*r, y=(d-b)*r*Math.cos(a*r); return Math.sqrt(x*x+y*y)*6371000; }
+function coul(s){
+  for(var i=1;i<STOPS.length;i++){
+    if(s<=STOPS[i][0]){ var a=STOPS[i-1], b=STOPS[i], t=(s-a[0])/(b[0]-a[0]);
+      return "rgb("+[0,1,2].map(function(j){return Math.round(a[1][j]+(b[1][j]-a[1][j])*t);}).join(",")+")"; }
+  }
+  return "rgb(30,132,73)";
+}
+function etiq(s){ return s<30 ? "improbable" : s<50 ? "possible" : s<75 ? "probable" : "fenêtre idéale"; }
+function fleche(a,b){ var d=b-a; return d>=8 ? "↗ en hausse" : d<=-8 ? "↘ en baisse" : "→ stable"; }
+function saisonF(p, alt, off){
+  var n = new Date(), doy = Math.floor((n - new Date(n.getFullYear(),0,0))/86400000) + off;
+  var sh = clamp(alt-200,0,1000)/1000*30, a = (p.s-1)*30.4+1, b = p.e*30.4;
+  if(p.spring){ a += sh; b += sh; } else { a -= sh; b -= sh; }
+  if(doy>=a && doy<=b) return 1;
+  return clamp(1-0.95*(doy<a ? a-doy : doy-b)/30, 0.05, 1);
+}
+// Réserve en eau de la litière : pluie moins 60 % de l'évapotranspiration, bornée à 0-30 mm
+function prep(d){
+  var q = d.daily, S = [], s = 10;
+  for(var i=0;i<q.time.length;i++){ s = clamp(s + (q.precipitation_sum[i]||0) - 0.6*(q.et0_fao_evapotranspiration[i]||0), 0, 30); S.push(s); }
+  d.S = S; return d;
+}
+// Indice de pousse 0-100 pour une espèce, aujourd'hui (off=0) ou dans off jours (prévision)
+function indice(d, esp, off){
+  var q = d.daily, p = ESPECES[esp], r = I0+off, i;
+  var water = clamp(d.S[r]/p.need, 0, 1), trig = 0.2, lat = null;
+  for(var k=r-28; k<=r-5; k++){
+    var mm = (q.precipitation_sum[k]||0)+(q.precipitation_sum[k-1]||0)+(q.precipitation_sum[k-2]||0);
+    if(mm >= 12){
+      var l = r-k, dist = l<p.lat[0] ? p.lat[0]-l : l>p.lat[1] ? l-p.lat[1] : 0;
+      var f = clamp(mm/25,0.5,1) * clamp(1-dist/12,0.3,1);
+      if(f > trig){ trig = f; lat = l; }
+    }
+  }
+  var tm = 0; for(i=r-p.tw+1;i<=r;i++){ tm += q.temperature_2m_mean[i]; } tm /= p.tw;
+  var gel = Math.min(q.temperature_2m_min[r], q.temperature_2m_min[r-1], q.temperature_2m_min[r-2]);
+  var fr = gel < -3 ? 0.2 : gel < -1 ? 0.5 : gel < 0 ? 0.8 : 1;
+  var temp = trap(tm,p.tlo,p.thi), sa = saisonF(p, d.elevation, off);
+  var sc = Math.pow(water,.35)*Math.pow(trig,.35)*Math.pow(temp,.3)*sa*fr;
+  if(water < .25) sc = Math.min(sc,.35);   // sécheresse : note plafonnée
+  var pl = 0; for(i=r-20;i<=r;i++){ pl += q.precipitation_sum[i]||0; }
+  return {score:Math.round(sc*100), eau:Math.round(water*100), lat:lat, tm:tm, sa:sa, gel:gel, pluie:Math.round(pl)};
+}
+function compat(ph, arb, hors, esp){
+  var p = ESPECES[esp], fph = 1, far = 1;
+  if(ph !== null){
+    var dist = ph<p.ph[0] ? p.ph[0]-ph : ph>p.ph[1] ? ph-p.ph[1] : 0;
+    fph = clamp(1-dist/1.5, 0.1, 1);
+  }
+  if(hors) far = 0.2;
+  else if(arb && arb.length) far = Math.max.apply(null, arb.map(function(t){return p.w[t]||0.15;}));
+  return Math.sqrt(fph*far);
+}
+function arbresDepuis(txt){
+  var t = norm(txt), a = [];
+  [[/\bhetres?\b/,"hetre"],[/\bchenes?\b|chataign/,"chene"],[/\bsapins?\b|douglas/,"sapin"],[/epicea/,"epicea"],
+   [/\bpins?\b|melez/,"pin"],[/charme/,"charme"],[/\bfrenes?\b|peuplier/,"frene"],[/\baulnes?\b/,"aulne"]
+  ].forEach(function(r){ if(r[0].test(t)) a.push(r[1]); });
+  if(!a.length){
+    var co = /conifere/.test(t), fe = /feuillus/.test(t);
+    if(co && fe) a = ["sapin","epicea","hetre","chene"];
+    else if(co) a = ["sapin","epicea"];
+    else if(fe) a = ["hetre","chene","charme"];
+    else if(/melang|mixte/.test(t)) a = ["sapin","epicea","hetre","chene"];
+  }
+  return a;
+}
+function nomProche(lat,lon){
+  var best = null, bd = 1e12;
+  LIEUX.forEach(function(l){ var d = distM(lat,lon,l[1],l[2]); if(d < bd){ bd = d; best = l[0]; } });
+  return bd < 4000 ? best : "près de " + best;
+}
+function construireGrille(){
+  var pts = [], dl = 0.0533, dn = 0.0833;
+  for(var i=-6;i<=6;i++){ for(var j=-6;j<=6;j++){
+    var la = CEN[0]+i*dl, lo = CEN[1]+j*dn;
+    if(distM(CEN[0],CEN[1],la,lo) <= RAY*1000) pts.push({lat:+la.toFixed(4), lon:+lo.toFixed(4)});
+  } }
+  return pts;
+}
+function urlMeteo(lats, lons){
+  return "https://api.open-meteo.com/v1/forecast?latitude="+lats.join(",")+"&longitude="+lons.join(",")+"&daily=precipitation_sum,temperature_2m_mean,temperature_2m_min,et0_fao_evapotranspiration&past_days=45&forecast_days=8&timezone=Europe%2FParis";
+}
+// ===DOM===
+var map, marqueur, jeton = 0, espCarte = "Cèpes", grille = null, chanceCouche = null, foretCouche = null, recCouche = null;
+var foretTimer = null, ftok = 0, spotsCourants = [], recoltes = [], courant = null;
+function iso(t){return new Date(t).toISOString().slice(0,10);}
+function jget(url){ return fetch(url).then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }); }
+function settle(p){ return p.then(function(v){return {ok:true,v:v};}, function(e){return {ok:false,e:e};}); }
+
+// ---------- Analyse du jour (haut de l'appli) ----------
+function chips(){
+  var c = document.getElementById("chips"); c.innerHTML = "";
+  Object.keys(ESPECES).forEach(function(k){
+    var b = document.createElement("button");
+    b.textContent = k; b.setAttribute("aria-pressed", k===espCarte);
+    b.addEventListener("click", function(){ espCarte = k; chips(); dessineCarte(); analyse(); });
+    c.appendChild(b);
+  });
+}
+function meilleur(esp, off){ var m = 0; grille.forEach(function(p){ var s = indice(p.d,esp,off).score; if(s > m) m = s; }); return m; }
+function analyse(){
+  var v = document.getElementById("verdict"), sg = document.getElementById("sugg");
+  if(!grille) return;
+  var e = espCarte;
+  var cells = grille.map(function(p){ return {p:p, s:indice(p.d,e,0).score}; }).sort(function(a,b){return b.s-a.s;});
+  var top = cells[0].s, jours = [], o;
+  for(o=0;o<8;o++){ jours.push(meilleur(e,o)); }
+  var bj = 0; jours.forEach(function(m,i){ if(m > jours[bj]) bj = i; });
+  function nomJ(n){ return new Date(Date.now()+n*864e5).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric"}); }
+  var cls, txt;
+  if(top >= 50){ cls = "ok"; txt = "Ça vaut la sortie pour les "+e.toLowerCase()+"."; }
+  else if(top >= 30){ cls = "mid"; txt = "Sortie possible pour les "+e.toLowerCase()+", sans garantie."; }
+  else { cls = "no"; txt = "Mieux vaut rester à la maison pour les "+e.toLowerCase()+"."; }
+  var d = 'Meilleur indice aujourd’hui : <b>'+top+'/100</b> (pousse '+etiq(top)+').';
+  if(bj > 0 && jours[bj] >= top+10){ d += '<br>Meilleure fenêtre : <b>'+nomJ(bj)+'</b> (indice '+jours[bj]+'/100).'; }
+  if(top < 30){
+    var alt = null, as = 0;
+    Object.keys(ESPECES).forEach(function(k){ if(k !== e){ var m = meilleur(k,0); if(m > as){ as = m; alt = k; } } });
+    if(alt && as >= 40){ d += '<br>En revanche, <b>'+esc(alt.toLowerCase())+'</b> : indice '+as+'/100. Change d’espèce ci-dessus pour voir où.'; }
+    else { d += '<br>Aucune des espèces suivies n’est favorable aujourd’hui.'; }
+  }
+  v.className = "verdict "+cls;
+  v.innerHTML = '<div class="vt">'+txt+'</div><div class="vd">'+d+'</div>';
+  spotsCourants = [];
+  if(top >= 20){
+    cells.forEach(function(c){
+      if(spotsCourants.length < 3 && c.s >= top-25 && spotsCourants.every(function(x){return distM(x.p.lat,x.p.lon,c.p.lat,c.p.lon) > 10000;})) spotsCourants.push(c);
+    });
+  }
+  sg.innerHTML = spotsCourants.map(function(c,i){
+    var s3 = indice(c.p.d,e,3).score;
+    return '<div class="spot"><div><b>'+esc(nomProche(c.p.lat,c.p.lon))+'</b> · '+Math.round(c.p.d.elevation)+' m<br><span class="src">indice '+c.s+'/100 · '+fleche(c.s,s3)+' sur 3 jours</span></div><button class="btn small" data-i="'+i+'">Voir</button></div>';
+  }).join("");
+  Array.prototype.forEach.call(sg.querySelectorAll("button[data-i]"), function(b){
+    b.addEventListener("click", function(){ var c = spotsCourants[+b.getAttribute("data-i")]; placer(c.p.lat, c.p.lon, 13); });
+  });
+}
+
+// ---------- Carte colorée des chances ----------
+function legende(){
+  var st = STOPS.map(function(s){ return "rgb("+s[1].join(",")+") "+s[0]+"%"; }).join(",");
+  var pos = [[0,"0"],[30,"30"],[50,"50"],[75,"75"],[100,"100"]];
+  document.getElementById("legend").innerHTML = '<div class="lg" style="background:linear-gradient(90deg,'+st+')"></div><div class="lgt">'
+    + pos.map(function(p){ return '<span style="left:'+p[0]+'%;transform:translateX(-'+p[0]+'%)">'+p[1]+'</span>'; }).join("")
+    + '</div><div class="lgs">Chances de trouver : <b>'+esc(espCarte.toLowerCase())+'</b> (météo, saison, altitude) · de improbable à fenêtre idéale</div>';
+}
+function dessineCarte(){
+  legende();
+  if(!chanceCouche || !grille) return;
+  chanceCouche.clearLayers();
+  grille.forEach(function(p){
+    var s = indice(p.d,espCarte,0).score;
+    window.L.rectangle([[p.lat-0.0267,p.lon-0.0417],[p.lat+0.0267,p.lon+0.0417]],{stroke:false,fillColor:coul(s),fillOpacity:s<5?0.08:0.5,interactive:false}).addTo(chanceCouche);
+  });
+}
+function chargeGrille(){
+  var pts = construireGrille(), v = document.getElementById("verdict");
+  v.className = "verdict"; v.textContent = "Calcul en cours…";
+  jget(urlMeteo(pts.map(function(p){return p.lat;}), pts.map(function(p){return p.lon;}))).then(function(j){
+    j = Array.isArray(j) ? j : [j];
+    pts.forEach(function(p,i){ p.d = prep(j[i]); });
+    grille = pts; dessineCarte(); analyse();
+  }).catch(function(e){ v.innerHTML = '<span class="warn">Météo indisponible ('+esc(e.message)+'). Touche Actualiser en bas de page.</span>'; });
+}
+
+// ---------- Évaluation d'un point ----------
+function evaluer(lat, lon){
+  var mon = ++jeton, panel = document.getElementById("panel"), list = document.getElementById("list"), e = 0.00015;
+  panel.hidden = false; panel.innerHTML = "<p>Lecture de la météo, de la forêt et du sol…</p>"; list.innerHTML = "";
+  document.getElementById("hint").textContent = "Point : "+lat.toFixed(4)+", "+lon.toFixed(4);
+  Promise.all([
+    settle(jget(urlMeteo([lat],[lon]))),
+    settle(jget("https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=LANDCOVER.FORESTINVENTORY.V2:formation_vegetale&OUTPUTFORMAT=application/json&COUNT=3&SRSNAME=EPSG:4326&BBOX="+[lat-e,lon-e,lat+e,lon+e].join(",")+",urn:ogc:def:crs:EPSG::4326")),
+    settle(jget("https://rest.isric.org/soilgrids/v2.0/properties/query?lon="+lon+"&lat="+lat+"&property=phh2o&depth=5-15cm&value=mean")),
+    settle(jget("https://api.inaturalist.org/v1/observations?lat="+lat+"&lng="+lon+"&radius=30&iconic_taxa=Fungi&per_page=0&d1="+iso(Date.now()-14*864e5)+"&d2="+iso(Date.now()))),
+    settle(jget("https://api.inaturalist.org/v1/observations?lat="+lat+"&lng="+lon+"&radius=30&iconic_taxa=Fungi&per_page=0&d1="+iso(Date.now()-28*864e5)+"&d2="+iso(Date.now()-15*864e5)))
+  ]).then(function(res){ if(mon === jeton) rendre(lat, lon, res[0], res[1], res[2], res[3], res[4]); });
+}
+function txtForet(pr){
+  return Object.keys(pr||{}).filter(function(k){return /essence|tfv|lib/i.test(k);}).map(function(k){return pr[k];}).filter(function(v){return v;}).join(" · ");
+}
+function rendre(lat, lon, mt, fo, so, a1, a0){
+  var panel = document.getElementById("panel"), list = document.getElementById("list");
+  if(!mt.ok){ panel.innerHTML = '<p class="warn">Météo indisponible ('+esc(mt.e.message)+'). Touche la carte pour réessayer.</p>'; return; }
+  var d = prep(Array.isArray(mt.v) ? mt.v[0] : mt.v), alt = Math.round(d.elevation);
+  var arb = null, hors = false, fTxt, fPlain = "";
+  if(fo.ok){
+    var feats = (fo.v && fo.v.features) || [];
+    if(feats.length){
+      var txt = txtForet(feats[0].properties);
+      arb = arbresDepuis(txt); if(!arb.length) arb = null;
+      fPlain = txt; fTxt = txt ? esc(txt) : "forêt cartographiée, essence non précisée";
+    } else { hors = true; fPlain = "aucune forêt cartographiée"; fTxt = "aucune forêt cartographiée à ce point"; }
+  } else { fTxt = '<span class="warn">indisponible ('+esc(fo.e.message)+')</span>'; }
+  var ph = null, sTxt;
+  if(so.ok){
+    try{
+      var ly = so.v.properties.layers[0], m = ly.depths[0].values.mean, df = (ly.unit_measure && ly.unit_measure.d_factor) || 10;
+      if(m !== null && m !== undefined) ph = m/df;
+    }catch(x){}
+  }
+  sTxt = ph !== null ? "pH ≈ <b>"+ph.toFixed(1)+"</b> ("+(ph<5.5?"acide":ph<=7.2?"neutre":"basique ou calcaire")+")" : '<span class="warn">indisponible</span>';
+  var rows = Object.keys(ESPECES).map(function(k){
+    var c = compat(ph,arb,hors,k), x0 = indice(d,k,0), x3 = indice(d,k,3), x7 = indice(d,k,7);
+    return {nom:k, x:x0, score:Math.round(x0.score*c), s3:Math.round(x3.score*c), s7:Math.round(x7.score*c), sol:Math.round(c*100), connu:(ph!==null||arb!==null||hors)};
+  }).sort(function(a,b){return b.score-a.score;});
+  courant = {lat:lat, lon:lon, alt:alt, foret:fPlain, ph:ph, prevus:{}};
+  rows.forEach(function(r){ courant.prevus[r.nom] = r.score; });
+  var pres = proches(lat, lon, 300);
+  panel.innerHTML =
+    '<p>Altitude <b>'+alt+' m</b> · minimum des 3 derniers jours <b>'+indice(d,"Cèpes",0).gel.toFixed(1)+' °C</b></p>'
+    + '<p>Forêt : <b>'+fTxt+'</b> <span class="src">(IGN, BD Forêt V2)</span></p>'
+    + '<p>Sol : '+sTxt+' <span class="src">(ISRIC SoilGrids)</span></p>'
+    + ((a1.ok && a0.ok) ? '<p>Activité : <b>'+a1.v.total_results+'</b> observations de champignons à 30 km sur 14 j, contre <b>'+a0.v.total_results+'</b> les 14 j précédents <span class="src">(iNaturalist : observations de naturalistes, pas des récoltes)</span></p>' : '')
+    + '<p><a href="https://www.google.com/maps/search/?api=1&query='+lat+','+lon+'" target="_blank" rel="noopener">Ouvrir ce point dans Google Maps</a></p>'
+    + (pres.length ? '<p>Coin connu : <b>'+pres.length+'</b> récolte(s) enregistrée(s) à moins de 300 m</p>' : '');
+  list.innerHTML = "<h2>Indice de pousse à ce point</h2>";
+  rows.forEach(function(r){
+    var p = ESPECES[r.nom], el = document.createElement("div"), x = r.x;
+    el.className = "row";
+    el.innerHTML = '<div class="top"><div><span class="name">'+esc(r.nom)+'</span><br><span class="lab">pousse '+etiq(r.score)+'</span></div><span class="score">'+r.score+'<small>/100</small></span></div>'
+      + '<div class="bar"><i style="width:'+r.score+'%;background:'+coul(r.score)+'"></i></div>'
+      + '<div class="tend"><b>Tendance :</b> dans 3 j <b>'+r.s3+'</b> · dans 7 j <b>'+r.s7+'</b> · '+fleche(r.score,r.s7)+'</div>'
+      + '<div class="det">Réserve en eau '+x.eau+' % · pluie '+x.pluie+' mm sur 21 j · pluie déclenchante : '+(x.lat===null?'aucune':'il y a '+x.lat+' j')+' · température '+x.tm.toFixed(1)+' °C · saison '+Math.round(x.sa*100)+' %'+(r.connu?' · sol et arbres '+r.sol+' %':'')+' · '+(p.doc?'seuils inspirés d’études':'seuils estimés')+'</div>';
+    list.appendChild(el);
+  });
+  rendreRec();
+}
+
+// ---------- Récoltes (enregistrées sur l'appareil) ----------
+try{ recoltes = JSON.parse(localStorage.getItem("recoltes") || "[]"); }catch(e){}
+function sauveRec(){ try{ localStorage.setItem("recoltes", JSON.stringify(recoltes)); }catch(e){} }
+function proches(lat,lon,m){ return recoltes.filter(function(r){return distM(lat,lon,r.lat,r.lon)<=m;}); }
+function aujourdhui(){ var n=new Date(); return new Date(n-n.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function marqueursRec(){
+  if(!recCouche) return;
+  recCouche.clearLayers();
+  recoltes.forEach(function(r){
+    window.L.circleMarker([r.lat,r.lon],{radius:6,color:"#fff",weight:2,fillColor:"#d9822b",fillOpacity:1}).bindTooltip(r.esp+" · "+r.date+" · "+r.qte).addTo(recCouche);
+  });
+}
+function rendreRec(){
+  var el = document.getElementById("rec");
+  var h = '<h2>Mes récoltes ('+recoltes.length+')</h2>'
+    + '<button class="btn" id="recAdd"'+(courant?'':' disabled')+'>Enregistrer une récolte à ce point</button>'
+    + '<div id="recForm" class="form" hidden>'
+    + '<label>Espèce <select id="recEsp">'+Object.keys(ESPECES).map(function(k){return '<option>'+esc(k)+'</option>';}).join("")+'</select></label>'
+    + '<label>Quantité <select id="recQte"><option>peu</option><option>moyenne</option><option>beaucoup</option></select></label>'
+    + '<label>Date <input type="date" id="recDate" value="'+aujourdhui()+'"></label>'
+    + '<button class="btn" id="recOk">Enregistrer</button></div>';
+  recoltes.slice().reverse().forEach(function(r){
+    h += '<div class="rec"><span>'+esc(r.date)+' · <b>'+esc(r.esp)+'</b> · '+esc(r.qte)+' · '+r.alt+' m'+((r.prevu===null||r.prevu===undefined)?'':' · prévu '+r.prevu+'/100')+'</span><button class="lnk" data-id="'+r.id+'">supprimer</button></div>';
+  });
+  if(recoltes.length) h += '<button class="lnk" id="recCopy">Copier mes récoltes</button>';
+  el.innerHTML = h;
+  document.getElementById("recAdd").addEventListener("click", function(){ document.getElementById("recForm").hidden = false; });
+  document.getElementById("recOk").addEventListener("click", function(){
+    if(!courant) return;
+    var esp = document.getElementById("recEsp").value, date = document.getElementById("recDate").value || aujourdhui();
+    var prevu = (date === aujourdhui() && courant.prevus[esp] !== undefined) ? courant.prevus[esp] : null;
+    recoltes.push({id:Date.now(), date:date, esp:esp, qte:document.getElementById("recQte").value, lat:courant.lat, lon:courant.lon, alt:courant.alt, foret:courant.foret, ph:(courant.ph===null?null:+courant.ph.toFixed(1)), prevu:prevu});
+    sauveRec(); marqueursRec(); rendreRec();
+  });
+  Array.prototype.forEach.call(el.querySelectorAll("button[data-id]"), function(b){
+    b.addEventListener("click", function(){
+      var id = +b.getAttribute("data-id");
+      recoltes = recoltes.filter(function(r){return r.id !== id;});
+      sauveRec(); marqueursRec(); rendreRec();
+    });
+  });
+  var cp = document.getElementById("recCopy");
+  if(cp) cp.addEventListener("click", function(){
+    var t = JSON.stringify(recoltes);
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ cp.textContent = "Copié"; }, function(){ window.prompt("Copie ce texte", t); }); }
+    else { window.prompt("Copie ce texte", t); }
+  });
+}
+
+// ---------- Calque forêt (IGN BD Forêt V2) ----------
+function chargeForet(){
+  if(!map || !foretCouche || !map.hasLayer(foretCouche)) return;
+  var hint = document.getElementById("hint"), mon = ++ftok;
+  if(map.getZoom() < 12){ foretCouche.clearLayers(); hint.textContent = "Zoome (niveau 12 ou plus) pour voir les forêts."; return; }
+  var b = map.getBounds();
+  jget("https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=LANDCOVER.FORESTINVENTORY.V2:formation_vegetale&OUTPUTFORMAT=application/json&COUNT=300&SRSNAME=EPSG:4326&BBOX="+[b.getSouth(),b.getWest(),b.getNorth(),b.getEast()].join(",")+",urn:ogc:def:crs:EPSG::4326")
+  .then(function(j){
+    if(mon !== ftok) return;
+    foretCouche.clearLayers();
+    window.L.geoJSON(j,{
+      style:function(f){
+        var a = arbresDepuis(txtForet(f.properties)), co = a.some(function(t){return t==="sapin"||t==="epicea"||t==="pin";}), fe = a.some(function(t){return t!=="sapin"&&t!=="epicea"&&t!=="pin";});
+        var c = co&&fe ? "#a89b2a" : co ? "#1f5c3a" : fe ? "#8fbf4a" : "#7a8a7a";
+        return {color:c, weight:1, fillColor:c, fillOpacity:.45};
+      },
+      onEachFeature:function(f,l){ var t = txtForet(f.properties); if(t) l.bindTooltip(t); }
+    }).addTo(foretCouche);
+  }).catch(function(e){ hint.textContent = "Calque forêt indisponible ("+e.message+")."; });
+}
+
+// ---------- Recherche, position, carte ----------
+function aller(){
+  var hint = document.getElementById("hint"), v = document.getElementById("q").value.trim();
+  if(!v) return;
+  var m = v.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+  if(m){ placer(parseFloat(m[1].replace(",",".")), parseFloat(m[2].replace(",",".")), 14); return; }
+  hint.textContent = "Recherche…";
+  jget("https://data.geopf.fr/geocodage/search?limit=1&q="+encodeURIComponent(v)).then(function(j){
+    var f = j.features && j.features[0];
+    if(!f){ hint.textContent = "Lieu introuvable."; return; }
+    placer(f.geometry.coordinates[1], f.geometry.coordinates[0], 14);
+  }).catch(function(e){ hint.textContent = "Recherche indisponible ("+e.message+")."; });
+}
+function placer(lat, lon, zoom){
+  if(!map) return;
+  if(marqueur){ marqueur.setLatLng([lat,lon]); }
+  else { marqueur = window.L.circleMarker([lat,lon],{radius:9,color:"#fff",weight:2,fillColor:"#1f2a22",fillOpacity:.95}).addTo(map); }
+  if(zoom){ map.setView([lat,lon], zoom); }
+  evaluer(lat, lon);
+}
+function init(){
+  var hint = document.getElementById("hint");
+  if(typeof window.L === "undefined"){
+    document.getElementById("map").style.display = "none";
+    hint.textContent = "Carte indisponible (connexion requise).";
+    return;
+  }
+  var L = window.L;
+  map = L.map("map").setView([48.26,7.40], 9);
+  function ign(layer, fmt){
+    return L.tileLayer("https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&TILEMATRIXSET=PM&LAYER="+layer+"&STYLE=normal&FORMAT="+fmt+"&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}",{maxZoom:19,attribution:"© IGN / Géoplateforme"});
+  }
+  var plan = ign("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2","image/png");
+  var photo = ign("ORTHOIMAGERY.ORTHOPHOTOS","image/jpeg");
+  var osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenStreetMap"});
+  plan.addTo(map);
+  chanceCouche = L.layerGroup().addTo(map);
+  foretCouche = L.layerGroup();
+  recCouche = L.layerGroup().addTo(map);
+  L.control.layers({"Plan IGN":plan,"Photos aériennes IGN":photo,"OpenStreetMap":osm},{"Chances de trouver":chanceCouche,"Forêts (IGN BD Forêt)":foretCouche,"Mes récoltes":recCouche},{collapsed:true}).addTo(map);
+  map.on("click", function(ev){ placer(ev.latlng.lat, ev.latlng.lng, 0); });
+  map.on("moveend overlayadd", function(){ clearTimeout(foretTimer); foretTimer = setTimeout(chargeForet, 400); });
+  marqueursRec();
+}
+document.getElementById("go").addEventListener("click", aller);
+document.getElementById("q").addEventListener("keydown", function(ev){ if(ev.key==="Enter") aller(); });
+document.getElementById("refresh").addEventListener("click", chargeGrille);
+document.getElementById("gps").addEventListener("click", function(){
+  var hint = document.getElementById("hint");
+  if(!navigator.geolocation){ hint.textContent = "Position indisponible : cherche un lieu ou colle des coordonnées ci-dessus."; return; }
+  hint.textContent = "Recherche de ta position…";
+  navigator.geolocation.getCurrentPosition(function(p){ placer(p.coords.latitude, p.coords.longitude, 14); },
+    function(){ hint.textContent = "Position bloquée (fréquent avec un fichier local) : cherche un lieu ou colle des coordonnées ci-dessus."; },
+    {enableHighAccuracy:true, timeout:15000});
+});
+chips(); init(); rendreRec(); chargeGrille();
+</script>
+</body>
+</html>
